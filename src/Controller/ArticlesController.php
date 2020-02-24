@@ -17,6 +17,25 @@ class ArticlesController extends AppController
      *
      * @return \Cake\Http\Response|null
      */
+
+    public function isAuthorized($user){
+        // All registered users can add articles
+        // Prior to 3.4.0 $this->request->param('action') was used.
+        if ($this->request->getParam('action') === 'add') {
+            return true;
+        }
+        // The owner of an article can edit and delete it
+        // Prior to 3.4.0 $this->request->param('action') was used.
+        if (in_array($this->request->getParam('action'), ['edit', 'delete'])) {
+            // Prior to 3.4.0 $this->request->params('pass.0')
+            $articleId = (int)$this->request->getParam('pass.0');
+            if ($this->Articles->isOwnedBy($articleId, $user['id'])) {
+                return true;
+            }
+        }
+        return parent::isAuthorized($user);
+    }
+
     public function index()
     {
         $this->paginate = [
@@ -53,6 +72,10 @@ class ArticlesController extends AppController
         $article = $this->Articles->newEntity();
         if ($this->request->is('post')) {
             $article = $this->Articles->patchEntity($article, $this->request->getData());
+            $article->user_id = $this->Auth->user('id');
+            // You could also do the following
+            //$newData = ['user_id' => $this->Auth->user('id')];
+            //$article = $this->Articles->patchEntity($article, $newData);
             if ($this->Articles->save($article)) {
                 $this->Flash->success(__('The article has been saved.'));
 
@@ -60,8 +83,12 @@ class ArticlesController extends AppController
             }
             $this->Flash->error(__('The article could not be saved. Please, try again.'));
         }
-        $categories = $this->Articles->Categories->find('list', ['limit' => 200]);
-        $this->set(compact('article', 'categories'));
+        $this->set('article', $article);
+        // Just added the categories list to be able to choose
+        // one category for an article
+        $categories = $this->Articles->Categories->find('treeList');
+        $this->set(compact('categories'));
+        
     }
 
     /**
